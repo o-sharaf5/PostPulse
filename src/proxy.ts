@@ -1,17 +1,9 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/inngest(.*)", // Inngest calls this server-to-server, no Clerk session
-]);
-
-export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
-  }
-});
+// Clerk7 + Next 16 Cache Components: `auth.protect()` in middleware rewrites to
+// the sign-in page, which 404s on Vercel. Auth is enforced per-route instead:
+// pages call requireUser() and API routes return 401. Middleware only syncs the session.
+export default clerkMiddleware();
 
 export const config = {
   matcher: [
