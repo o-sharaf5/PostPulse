@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL") // pooled (pgbouncer) for the app
+  directUrl  = env("DIRECT_URL") // non-pooled for `prisma db push` / migrations
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELED
+}
+
+enum Platform {
+  X
+  LINKEDIN
+  MOCK // demo provider: no external call, always "publishes" successfully
+}
+
+enum PublishStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiKind {
+  IDEA
+  HOOK
+  REWRITE
+  SHORTEN
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique
+  displayName String?
+  email       String?
+  timezone    String   @default("UTC")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SocialAccount {
+  id            String    @id @default(cuid())
+  clerkUserId   String
+  platform      Platform
+  externalId    String // X user id or LinkedIn person URN sub
+  displayName   String
+  handle        String? // @username
+  pictureUrl    String?
+  accessTokenEnc String // AES-256-GCM ciphertext — never plaintext
+  refreshTokenEnc String?
+  tokenExpiresAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  jobs PublishJob[]
+
+  @@unique([clerkUserId, platform, externalId])
+  @@index([clerkUserId, platform])
+}
+
+model Post {
+  id          String     @id @default(cuid())
+  clerkUserId String
+  content     String     @db.Text
+  status      PostStatus @default(DRAFT)
+  scheduledAt DateTime? // absolute UTC instant (calendar UI converts local -> UTC)
+  timezone    String     @default("UTC") // original user timezone, for display
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  jobs        PublishJob[]
+  suggestions AiSuggestion[]
+
+  @@index([clerkUserId, status, scheduledAt])
+}
+
+// One row per post x target-account pair: the unit the worker publishes.
+model PublishJob {
+  id              String        @id @default(cuid())
+  postId          String
+  socialAccountId String
+  platform        Platform // denormalized for cheap filtering
+  status          PublishStatus @default(PENDING)
+  externalPostId  String? // tweet id / LinkedIn post URN — proof of publish
+  error           String?       @db.Text
+  attempts        Int           @default(0)
+  publishedAt     DateTime?
+
+  post    Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, socialAccountId])
+  @@index([socialAccountId])
+}
+
+model AiSuggestion {
+  id         String   @id @default(cuid())
+  clerkUserId String
+  postId     String?
+  kind       AiKind
+  input      String   @db.Text
+  output     String   @db.Text
+  adopted    Boolean  @default(false)
+  tokensUsed Int?
+  createdAt  DateTime @default(now())
+
+  post Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([clerkUserId, createdAt])
+}
