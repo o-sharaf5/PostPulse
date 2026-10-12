@@ -4,6 +4,8 @@ A lightweight micro content scheduler + AI idea generator for creators on **X** 
 Portfolio build: plan posts on a calendar, polish them with AI, and let a durable worker
 publish them automatically at the scheduled time.
 
+**Live demo: https://post-pulse-dun.vercel.app** — sign up and use the MOCK social account option; no X/LinkedIn app approval needed.
+
 ## Stack
 
 | Concern | Choice                                       |
